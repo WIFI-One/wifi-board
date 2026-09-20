@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>WiFi Board — Same WiFi. No cloud. No account.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <!-- Floating brand pill (top-left) -->
+  <div id="brandPill" class="float-pill">
+    <button id="collabBtn" title="People on this board">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg></span>
+      <span class="brand-name">WiFi Board</span>
+      <span class="presence"><span class="live-dot"></span><span id="collabCount">1</span></span>
+    </button>
+  </div>
+
+  <!-- Floating tool pill (top-center) -->
+  <div id="toolPill" class="float-pill">
+    <div id="tools">
+      <button data-tool="select" class="tool icon-btn active" title="Select / Move (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></svg></button>
+      <button data-tool="pen" class="tool icon-btn" title="Pen (P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+      <button data-tool="eraser" class="tool icon-btn" title="Eraser (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+      <button data-tool="text" class="tool icon-btn" title="Text (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="4" y2="4"/><line x1="12" x2="12" y1="4" y2="20"/></svg></button>
+      <button data-tool="sticky" class="tool icon-btn" title="Sticky note (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg></button>
+      <div class="shape-wrap">
+        <button id="shapeBtn" class="icon-btn" title="Shapes — Rectangle (R), Circle (O), Line (L), Frame (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></button>
+        <div class="shape-menu" id="shapeMenu">
+          <button data-tool="rect" class="icon-btn" title="Rectangle (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></button>
+          <button data-tool="ellipse" class="icon-btn" title="Circle (O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg></button>
+          <button data-tool="line" class="icon-btn" title="Line (L)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" x2="19" y1="19" y2="5"/></svg></button>
+          <button data-tool="frame" class="icon-btn" title="Frame / section (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 6H2"/><path d="M22 18H2"/><path d="M6 2v20"/><path d="M18 2v20"/></svg></button>
+        </div>
+      </div>
+      <button data-tool="arrow" class="tool icon-btn" title="Arrow (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></button>
+    </div>
+    <div class="pill-div"></div>
+    <div class="stroke-ctl" title="Stroke thickness">
+      <span class="sw" data-w="2"></span><span class="sw sel" data-w="4"></span><span class="sw" data-w="8"></span>
+    </div>
+  </div>
+
+  <!-- Floating action pill (top-right) -->
+  <div id="actionPill" class="float-pill">
+    <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg></button>
+    <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg></button>
+    <div class="pill-div"></div>
+    <button id="zoomOut" class="icon-btn" title="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+    <span id="zoomLabel">100%</span>
+    <button id="zoomIn" class="icon-btn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+    <div class="pill-div"></div>
+    <button id="focusBtn" class="icon-btn" title="Focus mode (.)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <button id="shareBtn" class="icon-btn solid" title="Share board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg></button>
+  </div>
+
+  <!-- Floating compact toolbar (mobile) -->
+  <div id="mobilebar" class="float-pill">
+    <button data-tool="select" class="tool icon-btn active" title="Select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></svg></button>
+    <button data-tool="pen" class="tool icon-btn" title="Pen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+    <button data-tool="eraser" class="tool icon-btn" title="Eraser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+    <button data-tool="text" class="tool icon-btn" title="Text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="4" y2="4"/><line x1="12" x2="12" y1="4" y2="20"/></svg></button>
+    <button data-tool="sticky" class="tool icon-btn" title="Sticky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg></button>
+    <button data-tool="rect" class="tool icon-btn" title="Shape"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></button>
+    <button data-tool="arrow" class="tool icon-btn" title="Arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></button>
+  </div>
+
+  <!-- Floating privacy chip (bottom-left) -->
+  <div id="privacyPill" class="float-pill mini" title="Board data stays on your local network">
+    <span class="pulse"></span><span><b>LOCAL NETWORK</b><i>Nothing leaves your WiFi</i></span>
+  </div>
+
+  <div id="stage">
+    <canvas id="board"></canvas>
+    <div id="cursors"></div>
+    <textarea id="textEdit" class="hidden" placeholder="Type…"></textarea>
+    <div id="typingPill" class="hidden"></div>
+    <div id="hint">Drag to draw · Space + drag to pan · Scroll to zoom · Double-click text to edit</div>
+  </div>
+
+  <!-- Collaborators panel -->
+  <div id="collabPanel" class="panel hidden">
+    <h3>On this board <span id="collabN"></span></h3>
+    <div id="userList"></div>
+    <p class="muted">Temporary names. No accounts. Leaving discards your presence — the board stays on the host.</p>
+  </div>
+
+  <!-- Share panel -->
+  <div id="sharePanel" class="panel hidden">
+    <h3>Share on this WiFi</h3>
+    <p class="muted">Anyone on the <b>same WiFi network</b> can open this address and join instantly.</p>
+    <div class="addr-row"><code id="shareAddr">…</code><button id="copyAddr" class="btn-secondary">Copy</button></div>
+    <img id="qrImg" alt="QR code with board address" />
+    <p class="muted small">Same WiFi. No cloud. No account.</p>
+    <div class="row"><button id="clearBtn" class="btn-danger">Clear board</button><button id="dlBtn" class="btn-secondary">Export JSON</button></div>
+  </div>
+
+  <!-- Landing / join overlay -->
+  <div id="landing">
+    <div class="card">
+      <div class="brand big"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg></span>WiFi Board</div>
+      <h1>Brainstorm together,<br>over WiFi alone.</h1>
+      <p class="muted">Real-time whiteboard for people on the <b>same WiFi network</b>. No cloud server. No account. No internet required after load.</p>
+      <label>Display name <span class="muted">(temporary)</span></label>
+      <div class="row"><input id="nameInput" maxlength="24" /><button id="shuffleName" class="btn-secondary" title="New random name">↻</button></div>
+      <button id="joinBtn" class="btn-primary big">Join board →</button>
+      <div class="join-meta">
+        <div><span class="muted">Board address</span><code id="landAddr">…</code></div>
+        <img id="landQr" alt="QR to join" />
+      </div>
+      <p class="promise">Same WiFi. No cloud. No account. · <span class="local-tag">LOCAL NETWORK — Nothing leaves your WiFi</span></p>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

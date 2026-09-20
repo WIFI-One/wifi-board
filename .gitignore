@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Lockfiles: npm is canonical for this repo (keep package-lock.json only)
+pnpm-lock.yaml
+yarn.lock
+
+# Runtime board data (lives on the host; user content, never commit)
+board.json
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime / cache
+.eslintcache
+*.pid
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
