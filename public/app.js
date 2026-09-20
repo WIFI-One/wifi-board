@@ -51,13 +51,15 @@ function redo() {
 }
 
 // ---------- geometry ----------
+function normBox(o) { return { x: Math.min(o.x, o.x + (o.w || 0)), y: Math.min(o.y, o.y + (o.h || 0)), w: Math.abs(o.w || 0), h: Math.abs(o.h || 0) }; }
+function lineW(o) { return o.sw ?? (o.type === 'path' ? (o.w || 4) : 3); }
 function bbox(o) {
   if (o.type === 'path') {
     let xs = o.points.map(p => p.x), ys = o.points.map(p => p.y);
     return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   }
   if (o.type === 'text') { ctx.font = `${o.size || 20}px 'Space Grotesk',sans-serif`; const w = Math.max(40, ctx.measureText(o.text || ' ').width); return { x: o.x, y: o.y, w, h: (o.size || 20) * 1.35 }; }
-  return { x: o.x, y: o.y, w: o.w, h: o.h };
+  return normBox(o);
 }
 function toLocal(o, px, py) {
   const b = bbox(o); const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -67,7 +69,7 @@ function toLocal(o, px, py) {
 }
 function hit(o, px, py) {
   if (o.type === 'path') {
-    const tol = 8 / cam.zoom + (o.w || 4) / 2;
+    const tol = 8 / cam.zoom + lineW(o) / 2;
     for (let i = 1; i < o.points.length; i++) {
       if (segDist(px, py, o.points[i-1], o.points[i]) < tol) return true;
     }
@@ -124,22 +126,23 @@ function drawObj(o) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const sel = selected.has(o.id);
   if (o.type === 'path') {
-    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = o.w || 4;
+    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
     ctx.beginPath(); o.points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
   } else if (o.type === 'rect') {
-    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = o.w || 3;
+    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
     if (o.fill && o.fill !== 'none') { ctx.fillStyle = o.fill; ctx.fillRect(b.x, b.y, b.w, b.h); }
     ctx.strokeRect(b.x, b.y, b.w, b.h);
   } else if (o.type === 'ellipse') {
-    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = o.w || 3;
+    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
     ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(b.w)/2, Math.abs(b.h)/2, 0, 0, 7); ctx.stroke();
   } else if (o.type === 'line' || o.type === 'arrow') {
-    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = o.w || 3;
-    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.w, b.y + b.h); ctx.stroke();
+    ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
+    const x1 = o.x, y1 = o.y, x2 = o.x + (o.w || 0), y2 = o.y + (o.h || 0);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     if (o.type === 'arrow') {
-      const ang = Math.atan2(b.h, b.w), s = 12 + (o.w || 3) * 1.5, ex = b.x + b.w, ey = b.y + b.h;
+      const ang = Math.atan2(y2 - y1, x2 - x1), s = 12 + lineW(o) * 1.5;
       ctx.fillStyle = o.stroke || '#f5f5f5'; ctx.beginPath();
-      ctx.moveTo(ex, ey); ctx.lineTo(ex - s * Math.cos(ang - .42), ey - s * Math.sin(ang - .42)); ctx.lineTo(ex - s * Math.cos(ang + .42), ey - s * Math.sin(ang + .42));
+      ctx.moveTo(x2, y2); ctx.lineTo(x2 - s * Math.cos(ang - .42), y2 - s * Math.sin(ang - .42)); ctx.lineTo(x2 - s * Math.cos(ang + .42), y2 - s * Math.sin(ang + .42));
       ctx.closePath(); ctx.fill();
     }
   } else if (o.type === 'text') {
@@ -169,6 +172,7 @@ function wrapText(text, x, y, maxW, lh) {
 let handles = [];
 function drawSelection() {
   handles = [];
+  if (drawing) { if (rubber) drawRubber(); return; }
   if (!selected.size) { if (rubber) drawRubber(); return; }
   const objs = objects.filter(o => selected.has(o.id)); if (!objs.length) return;
   let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
@@ -227,8 +231,9 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (tool === 'pen') {
     pushHistory();
-    drawing = { id: uid(), type: 'path', points: [w, w], stroke: '#f5f5f5', w: strokeW };
-    objects.push(drawing); selected = new Set([drawing.id]); render(); return;
+    selected.clear();
+    drawing = { id: uid(), type: 'path', points: [w, w], stroke: '#f5f5f5', w: strokeW, sw: strokeW };
+    objects.push(drawing); render(); return;
   }
   if (tool === 'eraser') { pushHistory(); eraseAt(w); dragOp = { k: 'erase' }; return; }
   // shape / text / sticky / frame creation
@@ -253,29 +258,43 @@ canvas.addEventListener('pointermove', (e) => {
   }
   if (dragOp?.k === 'create') {
     const s = dragOp.startW;
-    const x = Math.min(s.x, w.x), y = Math.min(s.y, w.y), ww = Math.abs(w.x - s.x), hh = Math.abs(w.y - s.y);
+    const dx = w.x - s.x, dy = w.y - s.y;
     let o = objects.find(o => o.id === dragOp.id);
-    const base = { id: dragOp.id, stroke: '#f5f5f5', w: strokeW, rotation: 0 };
-    if (tool === 'rect') o ? Object.assign(o, { x, y, w: ww, h: hh }) : objects.push({ ...base, type: 'rect', x, y, w: ww, h: hh });
-    if (tool === 'ellipse') o ? Object.assign(o, { x, y, w: ww, h: hh }) : objects.push({ ...base, type: 'ellipse', x, y, w: ww, h: hh });
-    if (tool === 'line' || tool === 'arrow') o ? Object.assign(o, { x: s.x, y: s.y, w: w.x - s.x, h: w.y - s.y }) : objects.push({ ...base, type: tool, x: s.x, y: s.y, w: 1, h: 1 });
-    if (tool === 'sticky') o ? Object.assign(o, { x, y, w: Math.max(ww, 120), h: Math.max(hh, 120) }) : objects.push({ id: dragOp.id, type: 'sticky', x: s.x, y: s.y, w: 160, h: 160, text: '', rotation: 0 });
+    const base = { id: dragOp.id, stroke: '#f5f5f5', sw: strokeW, rotation: 0 };
+    if (tool === 'rect') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, type: 'rect', x: s.x, y: s.y, w: dx, h: dy });
+    if (tool === 'ellipse') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, type: 'ellipse', x: s.x, y: s.y, w: dx, h: dy });
+    if (tool === 'line' || tool === 'arrow') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy, sw: strokeW }) : objects.push({ ...base, type: tool, x: s.x, y: s.y, w: 0, h: 0 });
+    if (tool === 'sticky') {
+      const mw = dx >= 0 ? Math.max(dx, 120) : Math.min(dx, -120);
+      const mh = dy >= 0 ? Math.max(dy, 120) : Math.min(dy, -120);
+      o ? Object.assign(o, { x: s.x, y: s.y, w: mw, h: mh }) : objects.push({ id: dragOp.id, type: 'sticky', x: s.x, y: s.y, w: 160, h: 160, text: '', rotation: 0 });
+    }
     if (tool === 'text') o ? Object.assign(o, { x: s.x, y: s.y }) : objects.push({ id: dragOp.id, type: 'text', x: s.x, y: s.y, text: '', size: 22 });
-    if (tool === 'frame') o ? Object.assign(o, { x, y, w: ww, h: hh }) : objects.push({ id: dragOp.id, type: 'frame', x, y, w: ww, h: hh, label: 'Frame' });
+    if (tool === 'frame') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ id: dragOp.id, type: 'frame', x: s.x, y: s.y, w: dx, h: dy, label: 'Frame' });
     if (o) sendUpsert(o); else { const n = objects.find(o => o.id === dragOp.id); if (n) sendUpsert(n); }
     render(); return;
   }
   if (dragOp?.k === 'resize') {
     for (const orig of dragOp.orig) {
       const o = objects.find(x => x.id === orig.id); if (!o || o.type === 'path' || o.type === 'text') continue;
-      const b0 = orig.type === 'path' ? null : { x: orig.x, y: orig.y, w: orig.w, h: orig.h };
-      if (!b0) continue;
       const dx = w.x - dragOp.startW.x, dy = w.y - dragOp.startW.y;
-      let { x, y, w: ww, h: hh } = b0; const k = dragOp.h;
-      if (k.includes('e')) ww += dx; if (k.includes('s')) hh += dy;
-      if (k.includes('w')) { x += dx; ww -= dx; } if (k.includes('n')) { y += dy; hh -= dy; }
-      if (o.type === 'line' || o.type === 'arrow') { o.x = x; o.y = y; o.w = ww; o.h = hh; }
-      else { o.x = x; o.y = y; o.w = Math.max(10, ww); o.h = Math.max(10, hh); }
+      const k = dragOp.h;
+      if (o.type === 'line' || o.type === 'arrow') {
+        // Move the endpoint nearest the grabbed handle; keeps arrow direction correct
+        const n = normBox(orig);
+        const hx = k.includes('e') ? n.x + n.w : k.includes('w') ? n.x : n.x + n.w / 2;
+        const hy = k.includes('s') ? n.y + n.h : k.includes('n') ? n.y : n.y + n.h / 2;
+        const p1 = { x: orig.x, y: orig.y }, p2 = { x: orig.x + (orig.w || 0), y: orig.y + (orig.h || 0) };
+        const d1 = Math.hypot(p1.x - hx, p1.y - hy), d2 = Math.hypot(p2.x - hx, p2.y - hy);
+        if (d1 <= d2) { o.x = orig.x + dx; o.y = orig.y + dy; o.w = (orig.w || 0) - dx; o.h = (orig.h || 0) - dy; }
+        else { o.x = orig.x; o.y = orig.y; o.w = (orig.w || 0) + dx; o.h = (orig.h || 0) + dy; }
+      } else {
+        const b0 = normBox(orig);
+        let { x, y, w: ww, h: hh } = b0;
+        if (k.includes('e')) ww += dx; if (k.includes('s')) hh += dy;
+        if (k.includes('w')) { x += dx; ww -= dx; } if (k.includes('n')) { y += dy; hh -= dy; }
+        o.x = x; o.y = y; o.w = Math.max(10, ww); o.h = Math.max(10, hh);
+      }
       sendUpsert(o);
     }
     render(); return;
@@ -294,11 +313,19 @@ window.addEventListener('pointerup', () => {
   if (dragOp?.k === 'create') {
     const o = objects.find(o => o.id === dragOp.id);
     if (o) {
+      if (o.type === 'line' || o.type === 'arrow') {
+        if (Math.hypot(o.w || 0, o.h || 0) < 8) { objects = objects.filter(x => x.id !== o.id); selected.clear(); render(); dragOp = null; return; }
+      } else if (o.type === 'rect' || o.type === 'ellipse' || o.type === 'frame' || o.type === 'sticky') {
+        // normalize anchored drag to positive w/h so the start corner stays fixed
+        // and only the dragged corner moves during creation
+        if ((o.w || 0) < 0) { o.x += o.w; o.w = -o.w; }
+        if ((o.h || 0) < 0) { o.y += o.h; o.h = -o.h; }
+      }
       selected = new Set([o.id]);
       if ((o.type === 'text' || o.type === 'sticky') && (!o.text)) openEditor(o.id);
       wsSend({ t: 'upsert', obj: o }); persistLocal();
-      if (o.type === 'frame' && (o.w < 20 || o.h < 20)) { objects = objects.filter(x => x.id !== o.id); selected.clear(); }
-      if ((o.type === 'rect' || o.type === 'ellipse') && (o.w < 4 || o.h < 4)) { objects = objects.filter(x => x.id !== o.id); selected.clear(); }
+      if (o.type === 'frame' && (Math.abs(o.w) < 20 || Math.abs(o.h) < 20)) { objects = objects.filter(x => x.id !== o.id); selected.clear(); }
+      if ((o.type === 'rect' || o.type === 'ellipse') && (Math.abs(o.w) < 4 || Math.abs(o.h) < 4)) { objects = objects.filter(x => x.id !== o.id); selected.clear(); }
     }
     render();
   }

@@ -43,7 +43,7 @@ code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);bord
 #brandPill{top:14px;left:14px;padding:4px}
 #collabBtn{display:flex;align-items:center;gap:9px;border-radius:var(--radius-full);padding:5px 14px 5px 5px;transition:background 150ms}
 #collabBtn:hover{background:rgba(255,255,255,.08)}
-.logo{width:32px;height:32px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;flex:none}
+.logo{width:32px;height:32px;border-radius:9px;background:#fff;color:#000;display:grid;place-items:center;flex:none}
 .logo svg{width:19px;height:19px}
 .brand-name{font-weight:600;font-size:14.5px;letter-spacing:.1px;white-space:nowrap}
 .presence{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--txt-2);background:rgba(255,255,255,.07);border-radius:var(--radius-full);padding:3px 9px}
@@ -64,12 +64,6 @@ code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);bord
 /* action pill */
 #actionPill{top:14px;right:14px}
 #zoomLabel{font-size:12px;color:var(--txt-2);min-width:46px;text-align:center}
-
-/* privacy chip */
-#privacyPill{top:auto;bottom:14px;left:14px;gap:9px;padding:8px 14px;font-size:10px}
-#privacyPill b{letter-spacing:1.2px;display:block;font-size:10px}
-#privacyPill i{font-size:10.5px;color:var(--txt-2);font-style:normal;display:block}
-.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.5);flex:none}
 
 /* mobile bar */
 #mobilebar{display:none;top:auto;bottom:14px;left:50%;transform:translateX(-50%);max-width:94vw;overflow-x:auto}
@@ -125,12 +119,11 @@ code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);bord
 .local-tag{border:1px solid var(--border-2);border-radius:6px;padding:1px 6px;color:#cfcfcf}
 
 /* ---------- focus / responsive ---------- */
-body.focus .float-pill,body.focus #hint,body.focus .panel,body.focus #privacyPill{display:none}
+body.focus .float-pill,body.focus #hint,body.focus .panel{display:none}
 @media (max-width:1100px){#toolPill{max-width:calc(100vw - 380px)}}
 @media (max-width:900px){
   #toolPill{display:none}
   #mobilebar{display:flex}
-  #privacyPill{display:none}
   #hint{display:none}
   #typingPill{bottom:70px}
   .brand-name{display:none}
