@@ -1,4 +1,5 @@
 # WiFi Board
+*Your Network. Your Space.*
 
 Real-time collaborative whiteboard for people on the **same WiFi network**.
 **Same WiFi. No cloud. No account.**
@@ -88,4 +89,3 @@ undo/redo · `Ctrl+A` select all · `0` reset view · `.` focus · `Esc` deselec
   panel and QR always reflect the actual port.
 - **Blank board after restart** — `board.json` may have been deleted; the app
   falls back to each browser's last `localStorage` copy when the host is empty.
-# wifi-board
