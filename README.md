@@ -33,6 +33,14 @@ Network: http://192.168.x.x:3001
 
 If the page is refreshed, the current board state is restored from the host.
 
+## Multiple boards
+
+Click the **layers icon** (top-right pill) to open the Boards sidebar: create
+named boards, switch between them, or delete them (deleting removes the board
+for everyone and kicks its viewers back to the landing page). Each board has
+its own objects and its own share link/QR (`?board=<id>`), so you can invite
+people straight into a specific board.
+
 ## Features
 
 - **Infinite canvas** — pan (Space+drag, wheel, right/middle-drag), zoom
@@ -52,7 +60,9 @@ If the page is refreshed, the current board state is restored from the host.
 - **Focus mode** (`.` or the expand icon) hides all UI for a larger canvas
 - **Responsive** — tool pill collapses to a floating bottom icon bar on phones
 - **Privacy** — `LOCAL NETWORK · Nothing leaves your WiFi` chip; board data
-  lives on the host (`board.json`) and is never sent to any cloud service
+  lives on the host (`boards.json`) and is never sent to any cloud service
+- **Multiple boards** — named boards with per-board share links, managed from
+  the Boards sidebar (create / switch / delete)
 
 ## Shortcuts
 
@@ -62,8 +72,9 @@ undo/redo · `Ctrl+A` select all · `0` reset view · `.` focus · `Esc` deselec
 
 ## How it works
 
-- `server.js` — Express static host + WebSocket hub. Keeps the board in
-  memory, persists to `board.json`, relays cursor/edit presence, generates
+- `server.js` — Express static host + WebSocket hub. Keeps the boards in
+  memory, persists to `boards.json` (migrates the old `board.json` once),
+  relays cursor/edit presence per board room, generates
   QR PNGs locally (`qrcode` package, no external service).
 - `public/` — dependency-free vanilla JS canvas app (`index.html`,
   `styles.css`, `app.js`). No CDN assets except the Space Grotesk webfont
@@ -77,8 +88,11 @@ undo/redo · `Ctrl+A` select all · `0` reset view · `.` focus · `Esc` deselec
 | ------ | ---- | ------- |
 | GET | `/health` | Liveness probe (`{"ok":true}`) |
 | GET | `/api/info` | LAN addresses, port, client count |
-| GET | `/api/board` | Current board state |
-| POST | `/api/board` | Replace board (`{objects}`), rebroadcasts |
+| GET | `/api/boards` | Board list (names, object/client counts) |
+| POST | `/api/boards` | Create board (`{name}`) → 201 |
+| DELETE | `/api/boards/:id` | Delete board, notifies its members |
+| GET | `/api/board?board=<id>` | One board's state |
+| POST | `/api/board` | Replace board (`{objects, boardId?}`), rebroadcasts |
 | GET | `/api/qr?text=…` | QR code PNG for any text (generated locally) |
 
 ## Troubleshooting
@@ -87,5 +101,5 @@ undo/redo · `Ctrl+A` select all · `0` reset view · `.` focus · `Esc` deselec
   allow inbound TCP on the board port.
 - **Port in use** — run with another port: `PORT=3005 npm start`. The Share
   panel and QR always reflect the actual port.
-- **Blank board after restart** — `board.json` may have been deleted; the app
+- **Blank board after restart** — `boards.json` may have been deleted; the app
   falls back to each browser's last `localStorage` copy when the host is empty.

@@ -9,6 +9,7 @@ yarn.lock
 
 # Runtime board data (lives on the host; user content, never commit)
 board.json
+boards.json
 
 # Env / secrets
 .env

@@ -1,3 +1,116 @@
+/* WIFI Board boot splash — the real wifi-chat animation
+   (client/src/components/LoadingScreen.tsx EngineCanvas): the ParticleSlider
+   0.9 engine on a runtime-generated "WiFi Board" slide ("WiFi Chat" there),
+   same responsive config (ptlGap/ptlSize), monochrome white, restless, no
+   GUI, no click handler. Engine is vendored at public/loading/ps-0.9.js so
+   it stays offline. Fades into the homescreen, stops, removes itself. */
+(function () {
+  'use strict';
+  var boot = document.getElementById('boot');
+  if (!boot) return;
+  // Splash only on the first visit; later loads skip straight to the board.
+  var SEEN_KEY = 'wifiboard:bootSeen';
+  var seen = false;
+  try { seen = !!localStorage.getItem(SEEN_KEY); } catch (e) {}
+  if (seen) { boot.remove(); return; }
+  try { localStorage.setItem(SEEN_KEY, '1'); } catch (e) {}
+  var TITLE = 'WiFi Board';
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var finished = false, ps = null;
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    // Fade the splash into the homescreen, then stop + remove it.
+    boot.classList.add('done');
+    setTimeout(function () {
+      try { if (ps) ps.nextFrame = function () {}; } catch (e) {}
+      boot.remove();
+    }, 650);
+  }
+
+  function timeout(p, ms) {
+    return Promise.race([p, new Promise(function (res) { setTimeout(res, ms); })]);
+  }
+  // Boot gates: fonts + local server info. The reveal itself is sequenced off
+  // the engine (see below): full formation -> 2s hold -> fade.
+  var fonts = (document.fonts && document.fonts.ready) ? timeout(document.fonts.ready, 2500) : Promise.resolve();
+  var server = timeout(fetch('/api/info', { cache: 'no-store' }).then(function () {}).catch(function () {}), 2500);
+
+  if (reduced || typeof ParticleSlider === 'undefined') {
+    var minTime = new Promise(function (res) { setTimeout(res, 800); });
+    Promise.all([minTime, fonts, server]).then(finish);
+    return;
+  }
+
+  // Render the slide image (data URL) for the engine to sample — same 1200x500
+  // shrink-to-fit slide wifi-chat generates, but reading "WiFi Board".
+  function makeSlideDataUrl() {
+    var c = document.createElement('canvas');
+    c.width = 1200;
+    c.height = 500;
+    var g = c.getContext('2d');
+    if (!g) return '';
+    g.clearRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    var px = 170;
+    g.font = '700 ' + px + 'px "Space Grotesk", system-ui, sans-serif';
+    var max = c.width * 0.92;
+    var measured = g.measureText(TITLE).width;
+    if (measured > max) {
+      px = Math.floor((px * max) / measured);
+      g.font = '700 ' + px + 'px "Space Grotesk", system-ui, sans-serif';
+    }
+    g.fillText(TITLE, c.width / 2, c.height / 2);
+    return c.toDataURL('image/png');
+  }
+
+  // Wait briefly for Space Grotesk so the particles form the right typeface.
+  // Reveal sequence: engine formation (3.2s) + 2s hold on the finished text,
+  // then fade into the homescreen. The board stays hidden behind the opaque
+  // splash until then.
+  var FORMATION_MS = 3200, HOLD_MS = 2000;
+  timeout(fonts, 1200).then(function () {
+    if (finished) return;
+    try {
+      var slideUrl = makeSlideDataUrl();
+      if (!slideUrl) { finish(); return; }
+      document.getElementById('first-slide').setAttribute('data-src', slideUrl);
+      // Same responsive config as wifi-chat's EngineCanvas.
+      var ua = (navigator.userAgent || '').toLowerCase();
+      var isMobile = ua.indexOf('mobile') >= 0;
+      var isSmall = window.innerWidth < 1000;
+      ps = new ParticleSlider({
+        ptlGap: isMobile || isSmall ? 3 : 0,
+        ptlSize: isMobile || isSmall ? 3 : 1,
+        width: 1e9,
+        height: 1e9,
+      });
+      // Solid white, drifting — but no dat.GUI panel, no click handler.
+      ps.monochrome = true;
+      if (ps.setColor) ps.setColor('#ffffff');
+      ps.restless = true;
+      // The engine samples the slide image synchronously in init(), so wait
+      // until it has decoded — initing earlier samples an empty image (or
+      // throws) and the splash vanishes before anything forms.
+      var img = new Image();
+      img.onload = function () {
+        if (finished) return;
+        try { ps.init(true); } catch (e) { finish(); return; }
+        var ready = Promise.all([fonts, server]);
+        setTimeout(function () {
+          if (finished) return;
+          ready.then(function () { setTimeout(finish, HOLD_MS); });
+        }, FORMATION_MS);
+      };
+      img.onerror = function () { finish(); };
+      img.src = slideUrl;
+    } catch (e) { finish(); }
+  });
+})();
+
 'use strict';
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -12,10 +125,14 @@ let objects = [];
 let cam = { x: 0, y: 0, zoom: 1 };
 let tool = 'select';
 let strokeW = 4;
+let strokeColor = '#f5f5f5';
+let fillOn = false;
 let selected = new Set();
 let undoStack = [], redoStack = [];
 let selfId = null, selfName = '';
 let users = [];
+let boardId = new URLSearchParams(location.search).get('board') || null;
+let boardName = '';
 let remoteCursors = new Map();
 let editingBy = new Map(); // objId -> { name, by, at } : who is live-typing where
 let drawing = null, dragOp = null, rubber = null;
@@ -58,7 +175,11 @@ function bbox(o) {
     let xs = o.points.map(p => p.x), ys = o.points.map(p => p.y);
     return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   }
-  if (o.type === 'text') { ctx.font = `${o.size || 20}px 'Space Grotesk',sans-serif`; const w = Math.max(40, ctx.measureText(o.text || ' ').width); return { x: o.x, y: o.y, w, h: (o.size || 20) * 1.35 }; }
+  if (o.type === 'text') {
+    // framed text box; legacy text without w/h falls back to measured line
+    if (o.w || o.h) return { x: o.x, y: o.y, w: o.w || 0, h: o.h || 0 };
+    ctx.font = `${o.size || 20}px 'Space Grotesk',sans-serif`; const w = Math.max(40, ctx.measureText(o.text || ' ').width); return { x: o.x, y: o.y, w, h: (o.size || 20) * 1.35 };
+  }
   return normBox(o);
 }
 function toLocal(o, px, py) {
@@ -134,7 +255,9 @@ function drawObj(o) {
     ctx.strokeRect(b.x, b.y, b.w, b.h);
   } else if (o.type === 'ellipse') {
     ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
-    ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(b.w)/2, Math.abs(b.h)/2, 0, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(b.w)/2, Math.abs(b.h)/2, 0, 0, 7);
+    if (o.fill && o.fill !== 'none') { ctx.fillStyle = o.fill; ctx.fill(); }
+    ctx.stroke();
   } else if (o.type === 'line' || o.type === 'arrow') {
     ctx.strokeStyle = o.stroke || '#f5f5f5'; ctx.lineWidth = lineW(o);
     const x1 = o.x, y1 = o.y, x2 = o.x + (o.w || 0), y2 = o.y + (o.h || 0);
@@ -146,8 +269,17 @@ function drawObj(o) {
       ctx.closePath(); ctx.fill();
     }
   } else if (o.type === 'text') {
-    ctx.fillStyle = '#f5f5f5'; ctx.font = `${o.size || 20}px 'Space Grotesk',sans-serif`;
-    (o.text || '').split('\n').forEach((ln, i) => ctx.fillText(ln, b.x, b.y + (o.size || 20) * (i + 1)));
+    const size = o.size || 20;
+    if (o.w || o.h) {
+      // frame-shaped text box you can type in
+      roundRect(b.x, b.y, b.w, b.h, 10);
+      ctx.strokeStyle = '#3d3d3d'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.fillStyle = o.stroke || '#f5f5f5'; ctx.font = `${size}px 'Space Grotesk',sans-serif`;
+      wrapText(o.text || '', b.x + 12, b.y + 12 + size, Math.max(20, b.w - 24), size * 1.4);
+    } else {
+      ctx.fillStyle = o.stroke || '#f5f5f5'; ctx.font = `${size}px 'Space Grotesk',sans-serif`;
+      (o.text || '').split('\n').forEach((ln, i) => ctx.fillText(ln, b.x, b.y + size * (i + 1)));
+    }
   } else if (o.type === 'sticky') {
     roundRect(b.x, b.y, b.w, b.h, 10); ctx.fillStyle = '#161616'; ctx.fill();
     ctx.strokeStyle = '#333'; ctx.lineWidth = 1.2; ctx.stroke();
@@ -163,10 +295,15 @@ function drawObj(o) {
 }
 function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function wrapText(text, x, y, maxW, lh) {
-  const words = (text || 'Double-click to edit').split(/\s+/); let line = '', yy = y;
-  for (const w of words) { const t = line ? line + ' ' + w : w;
-    if (ctx.measureText(t).width > maxW && line) { ctx.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
-  if (line) ctx.fillText(line, x, yy);
+  const paras = String(text || 'Double-click to edit').split('\n'); let yy = y;
+  for (const para of paras) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) { yy += lh; continue; }
+    let line = '';
+    for (const w of words) { const t = line ? line + ' ' + w : w;
+      if (ctx.measureText(t).width > maxW && line) { ctx.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
+    if (line) { ctx.fillText(line, x, yy); yy += lh; }
+  }
 }
 
 let handles = [];
@@ -232,7 +369,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (tool === 'pen') {
     pushHistory();
     selected.clear();
-    drawing = { id: uid(), type: 'path', points: [w, w], stroke: '#f5f5f5', w: strokeW, sw: strokeW };
+    drawing = { id: uid(), type: 'path', points: [w, w], stroke: strokeColor, w: strokeW, sw: strokeW };
     objects.push(drawing); render(); return;
   }
   if (tool === 'eraser') { pushHistory(); eraseAt(w); dragOp = { k: 'erase' }; return; }
@@ -260,23 +397,28 @@ canvas.addEventListener('pointermove', (e) => {
     const s = dragOp.startW;
     const dx = w.x - s.x, dy = w.y - s.y;
     let o = objects.find(o => o.id === dragOp.id);
-    const base = { id: dragOp.id, stroke: '#f5f5f5', sw: strokeW, rotation: 0 };
-    if (tool === 'rect') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, type: 'rect', x: s.x, y: s.y, w: dx, h: dy });
-    if (tool === 'ellipse') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, type: 'ellipse', x: s.x, y: s.y, w: dx, h: dy });
+    const base = { id: dragOp.id, stroke: strokeColor, sw: strokeW, rotation: 0 };
+    const shapeFill = { fill: fillOn ? strokeColor : 'none' };
+    if (tool === 'rect') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, ...shapeFill, type: 'rect', x: s.x, y: s.y, w: dx, h: dy });
+    if (tool === 'ellipse') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ ...base, ...shapeFill, type: 'ellipse', x: s.x, y: s.y, w: dx, h: dy });
     if (tool === 'line' || tool === 'arrow') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy, sw: strokeW }) : objects.push({ ...base, type: tool, x: s.x, y: s.y, w: 0, h: 0 });
     if (tool === 'sticky') {
       const mw = dx >= 0 ? Math.max(dx, 120) : Math.min(dx, -120);
       const mh = dy >= 0 ? Math.max(dy, 120) : Math.min(dy, -120);
       o ? Object.assign(o, { x: s.x, y: s.y, w: mw, h: mh }) : objects.push({ id: dragOp.id, type: 'sticky', x: s.x, y: s.y, w: 160, h: 160, text: '', rotation: 0 });
     }
-    if (tool === 'text') o ? Object.assign(o, { x: s.x, y: s.y }) : objects.push({ id: dragOp.id, type: 'text', x: s.x, y: s.y, text: '', size: 22 });
+    if (tool === 'text') {
+      const mw = dx >= 0 ? Math.max(dx, 160) : Math.min(dx, -160);
+      const mh = dy >= 0 ? Math.max(dy, 90) : Math.min(dy, -90);
+      o ? Object.assign(o, { x: s.x, y: s.y, w: mw, h: mh }) : objects.push({ ...base, type: 'text', x: s.x, y: s.y, w: mw, h: mh, text: '', size: 20 });
+    }
     if (tool === 'frame') o ? Object.assign(o, { x: s.x, y: s.y, w: dx, h: dy }) : objects.push({ id: dragOp.id, type: 'frame', x: s.x, y: s.y, w: dx, h: dy, label: 'Frame' });
     if (o) sendUpsert(o); else { const n = objects.find(o => o.id === dragOp.id); if (n) sendUpsert(n); }
     render(); return;
   }
   if (dragOp?.k === 'resize') {
     for (const orig of dragOp.orig) {
-      const o = objects.find(x => x.id === orig.id); if (!o || o.type === 'path' || o.type === 'text') continue;
+      const o = objects.find(x => x.id === orig.id); if (!o || o.type === 'path' || (o.type === 'text' && !o.w && !o.h)) continue;
       const dx = w.x - dragOp.startW.x, dy = w.y - dragOp.startW.y;
       const k = dragOp.h;
       if (o.type === 'line' || o.type === 'arrow') {
@@ -311,11 +453,15 @@ canvas.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', () => {
   if (drawing) { wsSend({ t: 'upsert', obj: drawing }); drawing = null; persistLocal(); }
   if (dragOp?.k === 'create') {
-    const o = objects.find(o => o.id === dragOp.id);
+    let o = objects.find(o => o.id === dragOp.id);
+    if (!o && tool === 'text') { // plain click: drop a default-size text box
+      o = { id: dragOp.id, type: 'text', x: dragOp.startW.x, y: dragOp.startW.y, w: 260, h: 130, text: '', size: 20, stroke: strokeColor, rotation: 0 };
+      objects.push(o);
+    }
     if (o) {
       if (o.type === 'line' || o.type === 'arrow') {
         if (Math.hypot(o.w || 0, o.h || 0) < 8) { objects = objects.filter(x => x.id !== o.id); selected.clear(); render(); dragOp = null; return; }
-      } else if (o.type === 'rect' || o.type === 'ellipse' || o.type === 'frame' || o.type === 'sticky') {
+      } else if (o.type === 'rect' || o.type === 'ellipse' || o.type === 'frame' || o.type === 'sticky' || o.type === 'text') {
         // normalize anchored drag to positive w/h so the start corner stays fixed
         // and only the dragged corner moves during creation
         if ((o.w || 0) < 0) { o.x += o.w; o.w = -o.w; }
@@ -371,9 +517,16 @@ function openEditor(id) {
   editingId = id;
   const b = bbox(o); const p = w2s(o.type === 'text' ? o.x : b.x, o.type === 'text' ? o.y : b.y);
   textEdit.classList.remove('hidden');
-  textEdit.style.left = p.x + 'px'; textEdit.style.top = (p.y - 10) + 'px';
+  textEdit.style.left = p.x + 'px';
+  textEdit.style.top = ((o.type === 'text' && (o.w || o.h)) ? p.y : p.y - 10) + 'px';
   textEdit.style.width = Math.max(180, (o.w || 200) * cam.zoom) + 'px';
   textEdit.style.height = Math.max(70, (o.h || 80) * cam.zoom) + 'px';
+  // framed text boxes: match the on-canvas type size/inset while typing
+  const z = Math.min(cam.zoom, 1.5);
+  textEdit.style.fontSize = o.type === 'text' ? Math.round((o.size || 20) * z) + 'px' : '';
+  textEdit.style.lineHeight = o.type === 'text' ? '1.4' : '';
+  textEdit.style.padding = o.type === 'text' ? Math.round(12 * z) + 'px' : '';
+  textEdit.style.borderRadius = (o.type === 'text' && (o.w || o.h)) ? '10px' : '';
   textEdit.value = o.type === 'frame' ? (o.label || '') : (o.text || '');
   wsSend({ t: 'edit', id });
   setTimeout(() => textEdit.focus(), 0);
@@ -423,6 +576,58 @@ document.getElementById('shapeBtn').addEventListener('click', (e) => { e.stopPro
 document.querySelectorAll('#shapeMenu button').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); setTool(b.dataset.tool); closeShapeMenu(); }));
 function closeShapeMenu() { document.getElementById('shapeMenu').parentElement.classList.remove('open'); }
 document.querySelectorAll('.sw').forEach(s => s.addEventListener('click', () => { document.querySelectorAll('.sw').forEach(x => x.classList.remove('sel')); s.classList.add('sel'); strokeW = +s.dataset.w; }));
+
+// ---------- colour + fill ----------
+const COLORS = ['#f5f5f5', '#94a3b8', '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#a855f7', '#ec4899'];
+const colorMenu = document.getElementById('colorMenu');
+colorMenu.innerHTML = COLORS.map(c => `<button data-color="${c}" title="${c}"></button>`).join('');
+colorMenu.querySelectorAll('button').forEach(b => {
+  b.style.background = b.dataset.color;
+  b.addEventListener('click', (e) => { e.stopPropagation(); setColor(b.dataset.color); });
+});
+function updateColorUI() {
+  document.querySelectorAll('.color-swatch').forEach(s => { s.style.background = strokeColor; });
+  colorMenu.querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.color === strokeColor));
+  document.querySelectorAll('.fill-btn').forEach(b => b.classList.toggle('active', fillOn));
+}
+function setColor(c) {
+  if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+  strokeColor = c;
+  if (selected.size) {
+    pushHistory();
+    for (const o of objects) if (selected.has(o.id)) {
+      if (o.type === 'sticky' || o.type === 'frame') continue;
+      o.stroke = c;
+      if (o.fill && o.fill !== 'none') o.fill = c;
+      sendUpsert(o);
+    }
+    persistLocal(); render();
+  }
+  updateColorUI();
+}
+function setFill(on) {
+  fillOn = on;
+  if (selected.size) {
+    pushHistory();
+    for (const o of objects) if (selected.has(o.id) && (o.type === 'rect' || o.type === 'ellipse')) {
+      o.fill = on ? (o.stroke || strokeColor) : 'none';
+      sendUpsert(o);
+    }
+    persistLocal(); render();
+  }
+  updateColorUI();
+}
+function closeColorMenu() { document.querySelectorAll('.color-wrap').forEach(w => w.classList.remove('open')); }
+document.querySelectorAll('.color-btn').forEach(btn => btn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const wrap = btn.parentElement;
+  if (!wrap.querySelector('#colorMenu')) wrap.appendChild(colorMenu);
+  const open = !wrap.classList.contains('open');
+  closeColorMenu();
+  if (open) wrap.classList.add('open');
+}));
+document.querySelectorAll('.fill-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); closeColorMenu(); setFill(!fillOn); }));
+updateColorUI();
 document.getElementById('undoBtn').onclick = undo;
 document.getElementById('redoBtn').onclick = redo;
 document.getElementById('zoomIn').onclick = () => { cam.zoom = Math.min(4, cam.zoom * 1.2); render(); };
@@ -430,18 +635,63 @@ document.getElementById('zoomOut').onclick = () => { cam.zoom = Math.max(.15, ca
 document.getElementById('focusBtn').onclick = () => { document.body.classList.toggle('focus'); setTimeout(resize, 50); };
 
 // ---------- panels ----------
-function hidePanels() { document.getElementById('collabPanel').classList.add('hidden'); document.getElementById('sharePanel').classList.add('hidden'); closeShapeMenu(); }
+function hidePanels() { document.getElementById('collabPanel').classList.add('hidden'); document.getElementById('sharePanel').classList.add('hidden'); document.getElementById('boardsPanel').classList.add('hidden'); closeShapeMenu(); closeColorMenu(); }
 document.getElementById('collabBtn').onclick = (e) => { e.stopPropagation(); const p = document.getElementById('collabPanel'); const was = p.classList.contains('hidden'); hidePanels(); if (was) p.classList.remove('hidden'); };
 document.getElementById('shareBtn').onclick = (e) => { e.stopPropagation(); const p = document.getElementById('sharePanel'); const was = p.classList.contains('hidden'); hidePanels(); if (was) { p.classList.remove('hidden'); refreshShare(); } };
-document.addEventListener('click', (e) => { if (!e.target.closest('.panel') && !e.target.closest('#collabBtn') && !e.target.closest('#shareBtn')) hidePanels(); });
+document.getElementById('boardsBtn').onclick = (e) => { e.stopPropagation(); const p = document.getElementById('boardsPanel'); const was = p.classList.contains('hidden'); hidePanels(); if (was) { p.classList.remove('hidden'); refreshBoards(); } };
+document.addEventListener('click', (e) => { if (!e.target.closest('.panel') && !e.target.closest('#collabBtn') && !e.target.closest('#shareBtn') && !e.target.closest('#boardsBtn')) hidePanels(); });
+
+// ---------- boards sidebar ----------
+async function refreshBoards() {
+  const list = document.getElementById('boardList');
+  try {
+    const r = await fetch('/api/boards', { cache: 'no-store' });
+    const data = await r.json();
+    const boards = data.boards || [];
+    list.innerHTML = boards.map(b =>
+      `<div class="board-row${b.id === boardId ? ' active' : ''}" data-id="${esc(b.id)}">` +
+      `<div class="board-meta"><b>${esc(b.name)}</b><span>${b.objectCount} object${b.objectCount === 1 ? '' : 's'} · ${b.clientCount} here</span></div>` +
+      `<button class="board-del" data-del="${esc(b.id)}" title="Delete board">×</button></div>`).join('') || '<p class="muted small">No boards yet.</p>';
+    list.querySelectorAll('.board-row').forEach(row => row.addEventListener('click', (e) => {
+      if (e.target.closest('.board-del')) return;
+      const id = row.dataset.id;
+      if (id !== boardId) location.href = location.pathname + '?board=' + encodeURIComponent(id);
+      else hidePanels();
+    }));
+    list.querySelectorAll('.board-del').forEach(btn => btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.del;
+      const name = btn.closest('.board-row')?.querySelector('b')?.textContent || 'this board';
+      if (!confirm(`Delete "${name}" for everyone? This cannot be undone.`)) return;
+      const r = await fetch('/api/boards/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!r.ok) return;
+      if (id === boardId) location.href = location.pathname;
+      else refreshBoards();
+    }));
+  } catch { list.innerHTML = '<p class="muted small">Could not load boards.</p>'; }
+}
+async function createBoard() {
+  const input = document.getElementById('boardNameInput');
+  const name = input.value.trim().slice(0, 60) || 'Untitled board';
+  try {
+    const r = await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    if (!r.ok) return;
+    const data = await r.json();
+    location.href = location.pathname + '?board=' + encodeURIComponent(data.board.id);
+  } catch {}
+}
+document.getElementById('createBoardBtn').onclick = createBoard;
+document.getElementById('boardNameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') createBoard(); });
 
 // ---------- share / QR / address ----------
 async function boardURL() {
+  let base;
   try { const info = await (await fetch('/api/info')).json();
     const lan = (info.addrs || [])[0];
-    if (lan && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) return `http://${lan}:${info.port}`;
+    if (lan && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) base = `http://${lan}:${info.port}`;
   } catch {}
-  return location.origin;
+  base = base || location.origin;
+  return boardId ? base + location.pathname + '?board=' + encodeURIComponent(boardId) : base + location.pathname;
 }
 async function refreshShare() {
   const url = await boardURL();
@@ -522,10 +772,11 @@ function drawRemoteEdits() {
 // ---------- networking ----------
 let ws, wsQueue = [];
 function wsSend(m) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); else wsQueue.push(m); }
-function persistLocal() { try { localStorage.setItem('wifiboard', JSON.stringify(objects)); } catch {} }
+function localKey() { return 'wifiboard:' + (boardId || 'default'); }
+function persistLocal() { try { localStorage.setItem(localKey(), JSON.stringify(objects)); } catch {} }
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(proto + '://' + location.host);
+  ws = new WebSocket(proto + '://' + location.host + location.pathname + (boardId ? '?board=' + encodeURIComponent(boardId) : ''));
   ws.onopen = () => { wsQueue.splice(0).forEach(m => ws.send(JSON.stringify(m))); if (selfName) wsSend({ t: 'rename', name: selfName }); };
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -533,10 +784,16 @@ function connect() {
       selfId = m.self.id;
       if (!selfName) selfName = m.self.name;
       document.getElementById('nameInput').value = selfName;
+      boardId = m.board.id; boardName = m.board.name;
+      try {
+        const want = '?board=' + encodeURIComponent(boardId);
+        if (location.search !== want) history.replaceState(null, '', location.pathname + want);
+      } catch {}
       objects = m.objects || [];
-      try { const local = JSON.parse(localStorage.getItem('wifiboard') || 'null'); if (!objects.length && local?.length) objects = local; } catch {}
+      try { const local = JSON.parse(localStorage.getItem(localKey()) || 'null'); if (!objects.length && local?.length) objects = local; } catch {}
       users = m.users; renderPresence(); render();
     }
+    else if (m.t === 'board-deleted') { if (!m.id || m.id === boardId) location.href = location.pathname; }
     else if (m.t === 'presence') { users = m.users; renderPresence(); }
     else if (m.t === 'cursor') { remoteCursors.set(m.id, { x: m.x, y: m.y, name: m.name, at: Date.now() }); positionCursors(); }
     else if (m.t === 'leave') { remoteCursors.delete(m.id); document.getElementById('cur-' + m.id)?.remove(); for (const [k, v] of editingBy) if (v.by === m.id) editingBy.delete(k); renderTypingPill(); }
@@ -616,7 +873,7 @@ document.getElementById('hint').textContent = 'Drag to draw · Space + drag to p
 
 // ---------- boot ----------
 document.getElementById('nameInput').value = randName();
-resize(); connect(); refreshShare(); render();
+resize(); connect(); refreshShare(); refreshBoards(); render();
 setInterval(() => {
   let changed = false;
   for (const [id, c] of remoteCursors) if (Date.now() - c.at > 8000) { remoteCursors.delete(id); document.getElementById('cur-' + id)?.remove(); }

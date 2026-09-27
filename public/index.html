@@ -4,12 +4,20 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>WiFi Board — Same WiFi. No cloud. No account.</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css" />
+<script>try{if(localStorage.getItem('wifiboard:bootSeen'))document.documentElement.classList.add('no-boot');}catch(e){}</script>
 </head>
 <body>
+<div id="boot" aria-hidden="true">
+  <div id="particle-slider">
+    <div class="slides"><div id="first-slide" class="slide"></div></div>
+    <canvas class="draw"></canvas>
+  </div>
+</div>
 <div id="app">
   <!-- Floating brand pill (top-left) -->
   <div id="brandPill" class="float-pill">
@@ -43,10 +51,18 @@
     <div class="stroke-ctl" title="Stroke thickness">
       <span class="sw" data-w="2"></span><span class="sw sel" data-w="4"></span><span class="sw" data-w="8"></span>
     </div>
+    <div class="pill-div"></div>
+    <div class="color-wrap">
+      <button class="color-btn icon-btn" title="Colour"><span class="color-swatch"></span></button>
+      <div class="color-menu" id="colorMenu"></div>
+    </div>
+    <button class="fill-btn icon-btn" title="Fill shapes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></svg></button>
   </div>
 
   <!-- Floating action pill (top-right) -->
   <div id="actionPill" class="float-pill">
+    <button id="boardsBtn" class="icon-btn" title="Boards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg></button>
+    <div class="pill-div"></div>
     <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg></button>
     <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg></button>
     <div class="pill-div"></div>
@@ -67,6 +83,11 @@
     <button data-tool="sticky" class="tool icon-btn" title="Sticky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg></button>
     <button data-tool="rect" class="tool icon-btn" title="Shape"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></button>
     <button data-tool="arrow" class="tool icon-btn" title="Arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></button>
+    <div class="pill-div"></div>
+    <div class="color-wrap up">
+      <button class="color-btn icon-btn" title="Colour"><span class="color-swatch"></span></button>
+    </div>
+    <button class="fill-btn icon-btn" title="Fill shapes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></svg></button>
   </div>
 
   <div id="stage">
@@ -82,6 +103,14 @@
     <h3>On this board <span id="collabN"></span></h3>
     <div id="userList"></div>
     <p class="muted">Temporary names. No accounts. Leaving discards your presence — the board stays on the host.</p>
+  </div>
+
+  <!-- Boards sidebar -->
+  <div id="boardsPanel" class="panel hidden">
+    <h3>Boards</h3>
+    <div class="row board-new"><input id="boardNameInput" maxlength="60" placeholder="New board name" /><button id="createBoardBtn" class="btn-secondary">Add</button></div>
+    <div id="boardList"></div>
+    <p class="muted small">Boards live on this host. Deleting a board removes it for everyone.</p>
   </div>
 
   <!-- Share panel -->
@@ -111,6 +140,7 @@
     </div>
   </div>
 </div>
+<script src="loading/ps-0.9.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

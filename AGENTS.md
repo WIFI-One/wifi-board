@@ -2,7 +2,9 @@
 
 Single-host whiteboard (no internet). Node.js WebSocket server + dependency-free
 vanilla JS canvas client. Server serves the client UI itself; board state lives
-on the host and syncs to all browsers on the same WiFi.
+on the host and syncs to all browsers on the same WiFi. Multiple named boards
+can be created/deleted from the Boards sidebar; each board has its own objects,
+presence room, and share link (`?board=<id>`).
 
 ## Repo layout (actual)
 
@@ -13,11 +15,15 @@ wifi-board/
 ├── package.json            # express, ws, qrcode; scripts: start, dev
 ├── package-lock.json       # npm is canonical (keep; do not add pnpm/yarn locks)
 ├── server.js               # entry: HTTP + WS + /api/* + static public/
-├── board.json              # runtime board persistence (gitignored, created on first change)
+├── boards.json             # runtime multi-board persistence (gitignored; old
+│                           # board.json is migrated once into it, then untouched)
 └── public/
-    ├── index.html          # floating pills, panels, landing overlay, inline SVG icons
+    ├── index.html          # floating pills, panels, boards sidebar, landing overlay, inline SVG icons
     ├── styles.css          # wifi-chat-matched theme tokens + pill styles
-    └── app.js              # canvas engine, tools, live typing, presence, networking
+    ├── app.js              # canvas engine, tools, live typing, presence, networking, boot splash
+    └── loading/            # copies of the WIFI One root loading files + ps-0.9.js
+                            # (ParticleSlider 0.9 vendored locally, no CDN calls);
+                            # the boot splash drives this engine
 ```
 
 There is no build step, no framework, no `dist/`, no test suite.
@@ -43,7 +49,9 @@ PORT=3005 npm start  # override port
 ## Ports
 
 - Board: `http://<host>:3001` (default; wifi-chat owns 3000 in this suite).
-  Binds `0.0.0.0` for LAN. No WS subpath — plain upgrade on `/`.
+  Binds `0.0.0.0` for LAN. No WS subpath — plain upgrade on `/`; clients join
+  a board room via WS query `?board=<id>` (unknown/missing falls back to the
+  oldest board). Share links/QR carry `?board=<id>`.
 - The Share panel / QR always reflect the effective `PORT`; `GET /api/info`
   reports LAN IPs + port + client count.
 
@@ -52,28 +60,44 @@ PORT=3005 npm start  # override port
 ```
 Client -> Server: rename {name}, cursor {x,y}, upsert {obj}, delete {ids},
                   full {objects}, clear, edit {id|null}
-Server -> Client: init {self, objects, users}, presence {users}, cursor,
-                  leave {id}, upsert {obj}, delete {ids}, full {objects},
-                  edit {id|null, by{id,name}}
+Server -> Client: init {self, board{id,name}, objects, users}, presence {users},
+                  cursor, leave {id}, upsert {obj}, delete {ids}, full {objects},
+                  edit {id|null, by{id,name}}, board-deleted {id}
 ```
 
+- All realtime messages are scoped to the sender's board room; `init.board`
+  is the source of truth for which board was joined (client syncs its
+  `?board=` URL to it). `board-deleted` tells members to leave (client
+  redirects to `/`).
 - `upsert` broadcasts exclude the sender; `full` is used for undo/redo and
   replace-from-REST. Temp names (`Blue Fox`…) are server-assigned, unique per
   connection, freed on disconnect.
-- REST: `GET /health`, `GET /api/info`, `GET /api/board`,
-  `POST /api/board {objects}`, `GET /api/qr?text=…` (local PNG).
+- REST: `GET /health`, `GET /api/info`, `GET /api/boards` (list with
+  object/client counts), `POST /api/boards {name}` (201),
+  `DELETE /api/boards/:id` (notifies members, keeps ≥1 board),
+  `GET /api/board?board=<id>`, `POST /api/board {objects, boardId?}`,
+  `GET /api/qr?text=…` (local PNG).
 
 ## State (public/app.js)
 
 - `objects` — array of `{id, type, …}` where type is
   `path|rect|ellipse|line|arrow|text|sticky|frame`. Paths store world-space
-  `points`; shapes store `x,y,w,h,rotation`.
+  `points`; shapes store `x,y,w,h,rotation`. `text` objects are framed,
+  typeable boxes (`w,h`, wrapped via `wrapText`); legacy text without `w/h`
+  still renders as a bare measured line.
 - `cam {x,y,zoom}` — world center + scale; `s2w`/`w2s` convert coordinates.
 - `tool`, `strokeW`, `selected:Set`, `undoStack`/`redoStack` (JSON snapshots).
+- `strokeColor` (hex, default `#f5f5f5`) and `fillOn` (shape fill toggle) drive
+  new objects; changing them with a selection applies to those objects too.
+  Colour applies to path/rect/ellipse/line/arrow/text `stroke`; fill only
+  affects `rect`/`ellipse` via `fill` (`'none'` when unfilled).
 - `users`, `remoteCursors:Map`, `editingBy:Map` (live-typing presence),
   `drawing`/`dragOp`/`rubber` (in-progress gestures), `editingId`.
-- Persistence: server `board.json`; client `localStorage['wifiboard']` is only
-  a fallback when the host board is empty.
+- `boardId`/`boardName` — active board (from `?board=`, confirmed by
+  `init.board`); switching boards reloads the page with a new `?board=`.
+- Persistence: server `boards.json` (all boards); client
+  `localStorage['wifiboard:<boardId>']` is only a fallback when the host
+  board is empty.
 
 ## Conventions / gotchas
 
@@ -82,9 +106,9 @@ Server -> Client: init {self, objects, users}, presence {users}, cursor,
 - Remote `upsert` for `editingId` merges into the open textarea with caret
   preserved; never echo — server already excludes the sender.
 - Every `getElementById` in `app.js` must exist in `index.html`
-  (31 IDs; verify with a quick node script after markup changes).
-- Never commit: `node_modules/`, `board.json` (user data), lockfiles other
-  than `package-lock.json`, `.env*`, `*.log`, OS/editor files.
+  (39 IDs; verify with a quick node script after markup changes).
+- Never commit: `node_modules/`, `board.json`/`boards.json` (user data),
+  lockfiles other than `package-lock.json`, `.env*`, `*.log`, OS/editor files.
 - Keep the client dependency-free and offline-capable (only the Google Fonts
   link may fail offline — it degrades to system fonts by design).
 

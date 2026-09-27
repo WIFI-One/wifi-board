@@ -29,6 +29,15 @@ input{background:none;border:none;outline:none;color:inherit;font-family:inherit
 code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 8px;font-size:12.5px;font-family:inherit}
 #app{height:100vh;position:relative}
 
+/* ---------- boot splash (plays on every page open, non-interactive) ---------- */
+#boot{position:fixed;inset:0;z-index:200;background:var(--bg-primary);pointer-events:none;transition:opacity 600ms ease,visibility 600ms}
+#boot.done{opacity:0;visibility:hidden}
+html.no-boot #boot{display:none}
+#boot .slides{display:none}
+#boot #particle-slider{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#boot canvas.draw{display:block;max-width:100%;max-height:100%}
+#boot p{margin:0}
+
 /* ---------- floating pills ---------- */
 .float-pill{position:fixed;z-index:30;display:flex;align-items:center;gap:2px;background:rgba(20,20,20,.92);border:1px solid var(--border);border-radius:var(--radius-full);padding:6px;box-shadow:var(--shadow-lg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .icon-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;background:transparent;transition:background 150ms,color 150ms;flex:none}
@@ -61,6 +70,17 @@ code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);bord
 .sw[data-w="2"]::after{width:4px;height:4px}.sw[data-w="4"]::after{width:8px;height:8px}.sw[data-w="8"]::after{width:12px;height:12px}
 .sw.sel{border-color:#fff}
 
+/* colour + fill */
+.color-wrap{position:relative}
+.color-swatch{width:18px;height:18px;border-radius:50%;background:#f5f5f5;box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.25)}
+.color-wrap.open .color-btn{background:rgba(255,255,255,.1)}
+.color-menu{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:16px;display:none;padding:8px;gap:8px;box-shadow:var(--shadow-lg);z-index:41}
+.color-wrap.up .color-menu{top:auto;bottom:calc(100% + 10px)}
+.color-wrap.open .color-menu{display:grid;grid-template-columns:repeat(5,1fr)}
+.color-menu button{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.2)}
+.color-menu button.sel{box-shadow:0 0 0 2px #fff}
+.fill-btn.active{background:#fff;color:#000}
+
 /* action pill */
 #actionPill{top:14px;right:14px}
 #zoomLabel{font-size:12px;color:var(--txt-2);min-width:46px;text-align:center}
@@ -85,12 +105,25 @@ code{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);bord
 /* ---------- panels ---------- */
 .panel{position:fixed;width:300px;background:var(--panel);border:1px solid var(--border-2);border-radius:16px;padding:14px;z-index:40;box-shadow:var(--shadow-lg)}
 #collabPanel{top:70px;left:14px}
+#boardsPanel{top:70px;left:14px}
 #sharePanel{top:70px;right:14px}
 .panel h3{margin:0 0 10px;font-size:14px;font-weight:600}
 .muted{color:var(--txt-2)}.small{font-size:11.5px}
 .panel p{font-size:12.5px}
 .user-row{display:flex;align-items:center;gap:9px;padding:7px 4px;border-top:1px solid #1f1f1f;font-size:13.5px}
 .avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center;font-size:12px;font-weight:600;flex:none}
+#boardsPanel input{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;font-size:13.5px;transition:border-color 150ms,background 150ms}
+#boardsPanel input:focus{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.1)}
+.board-new{margin-top:0}
+#boardList{margin-top:10px;max-height:46vh;overflow:auto}
+.board-row{display:flex;align-items:center;gap:9px;padding:8px;border-top:1px solid #1f1f1f;border-radius:8px;cursor:pointer}
+.board-row:hover{background:rgba(255,255,255,.05)}
+.board-row.active{background:rgba(255,255,255,.08)}
+.board-meta{flex:1;min-width:0}
+.board-meta b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.board-meta span{display:block;font-size:11.5px;color:var(--txt-2)}
+.board-del{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--txt-2);font-size:15px;line-height:1;flex:none}
+.board-del:hover{background:rgba(239,68,68,.2);color:var(--danger)}
 .addr-row{display:flex;gap:8px;margin:10px 0}
 .addr-row code{flex:1;overflow:hidden;text-overflow:ellipsis}
 #qrImg,#landQr{width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px}
